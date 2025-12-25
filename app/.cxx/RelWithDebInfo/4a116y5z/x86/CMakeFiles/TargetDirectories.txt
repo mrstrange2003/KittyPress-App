@@ -1,0 +1,3 @@
+C:/Users/raodi/AndroidStudioProjects/KittyPress/app/.cxx/RelWithDebInfo/4a116y5z/x86/CMakeFiles/kittypress.dir
+C:/Users/raodi/AndroidStudioProjects/KittyPress/app/.cxx/RelWithDebInfo/4a116y5z/x86/CMakeFiles/edit_cache.dir
+C:/Users/raodi/AndroidStudioProjects/KittyPress/app/.cxx/RelWithDebInfo/4a116y5z/x86/CMakeFiles/rebuild_cache.dir

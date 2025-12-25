@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "C:\\Users\\raodi\\AndroidStudioProjects\\KittyPress\\app\\src\\main\\cpp\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\raodi\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Users\\raodi\\AndroidStudioProjects\\KittyPress\\app\\.cxx\\RelWithDebInfo\\4a116y5z\\x86",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\raodi\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Users\\raodi\\AndroidStudioProjects\\KittyPress\\app\\.cxx\\RelWithDebInfo\\4a116y5z\\x86",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "kittypress::@6890427a1f51a3e7e1df": {
+      "artifactName": "kittypress",
+      "abi": "x86",
+      "output": "C:\\Users\\raodi\\AndroidStudioProjects\\KittyPress\\app\\build\\intermediates\\cxx\\RelWithDebInfo\\4a116y5z\\obj\\x86\\libkittypress.so",
+      "runtimeFiles": []
+    }
+  }
+}
