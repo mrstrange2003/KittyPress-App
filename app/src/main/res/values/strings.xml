@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KittyPress</string>
+    <string name="menu_dark_mode">Dark Mode</string>
+    <string name="menu_exit">Exit</string>
+</resources>

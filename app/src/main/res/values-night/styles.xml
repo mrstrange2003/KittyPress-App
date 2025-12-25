@@ -1,0 +1,16 @@
+<resources>
+
+    <!-- Dark theme -->
+    <style name="Theme.KittyPress" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">#111111</item>
+        <item name="colorPrimaryDark">#000000</item>
+        <item name="colorAccent">#FFB300</item>
+
+        <!-- Main background becomes dark -->
+        <item name="android:windowBackground">#121212</item>
+
+        <!-- Default dark-text -->
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+</resources>

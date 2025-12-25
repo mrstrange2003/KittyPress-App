@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Light theme -->
+    <style name="Theme.KittyPress" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#000000</item>
+        <item name="colorPrimaryDark">#000000</item>
+        <item name="colorAccent">#FFA000</item>
+
+        <!-- MAIN SCREEN BACKGROUND -->
+        <item name="android:windowBackground">?android:colorBackground</item>
+
+        <!-- Default text colors -->
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <!-- SPLASH THEME -->
+    <style name="Theme_KittyPress_Splash" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+
+
+</resources>
