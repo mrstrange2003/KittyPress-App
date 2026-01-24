@@ -1,6 +1,6 @@
 # KittyPress 🐾
 
-A powerful, fast, and efficient file compression and archive application for Android devices. KittyPress leverages multithreaded ZSTD compression to deliver industry-leading compression ratios and blazing-fast performance.
+A powerful, fast, and efficient file compression and archive application for Android devices. KittyPress leverages ZSTD compression to deliver industry-leading compression ratios and blazing-fast performance.
 
 ## Features
 
