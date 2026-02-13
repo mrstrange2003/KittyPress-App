@@ -16,4 +16,5 @@
     <color name="button_pressed_end">#289DC6</color>
 
     <color name="toolbar_bg">#151D36</color>
+    <color name="white">#FFFFFF</color>
 </resources>
