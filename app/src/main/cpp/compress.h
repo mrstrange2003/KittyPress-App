@@ -4,6 +4,7 @@
 #include <fstream>
 #include <vector>
 #include <iosfwd>
+#include <cstdint>
 
 // High-level API used by other parts of the app:
 //
