@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvProgressPct: TextView
 
     private var workingFolderTreeUri: Uri? = null
+    private var destinationFolderTreeUri: Uri? = null
 
     private val selectedFileUris = mutableListOf<Uri>()
     private val selectedFolderUris = mutableListOf<Uri>()
@@ -68,12 +69,16 @@ class MainActivity : AppCompatActivity() {
                 selectedInputsOrdered.removeAll { it in selectedFileUris }
                 selectedInputsOrdered.addAll(uris)
                 statusTv.text = "KittyPress status: Selected ${uris.size} file(s)"
+                if (destinationFolderTreeUri == null) {
+                    statusTv.text = "KittyPress status: Choose destination folder access"
+                    pickDestinationFolderLauncher.launch(null)
+                }
             } else {
                 statusTv.text = "KittyPress status: No files selected."
             }
         }
 
-    private val pickFolderLauncher: ActivityResultLauncher<Uri?> =
+    private val pickInputFolderLauncher: ActivityResultLauncher<Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { treeUri ->
             if (treeUri == null) {
                 statusTv.text = "KittyPress status: No folder picked."
@@ -82,6 +87,34 @@ class MainActivity : AppCompatActivity() {
             try {
                 contentResolver.takePersistableUriPermission(treeUri, IntentFlagsForTree)
             } catch (_: Exception) {}
+
+            workingFolderTreeUri = treeUri
+            selectedFolderUris.clear()
+            selectedFolderUris.add(treeUri)
+            selectedInputsOrdered.remove(treeUri)
+            selectedInputsOrdered.add(treeUri)
+            statusTv.text =
+                "KittyPress status: Working folder selected: ${
+                    DocumentFile.fromTreeUri(this, treeUri)?.name ?: treeUri.lastPathSegment
+                }"
+
+            if (destinationFolderTreeUri == null) {
+                statusTv.text = "KittyPress status: Choose destination folder access"
+                pickDestinationFolderLauncher.launch(null)
+            }
+        }
+
+    private val pickDestinationFolderLauncher: ActivityResultLauncher<Uri?> =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { treeUri ->
+            if (treeUri == null) {
+                statusTv.text = "KittyPress status: Destination folder not selected."
+                return@registerForActivityResult
+            }
+            try {
+                contentResolver.takePersistableUriPermission(treeUri, IntentFlagsForTree)
+            } catch (_: Exception) {}
+
+            destinationFolderTreeUri = treeUri
 
             val pendingArchive = pendingArchiveToCopy
             val pendingName = pendingArchiveName
@@ -122,15 +155,7 @@ class MainActivity : AppCompatActivity() {
                 return@registerForActivityResult
             }
 
-            workingFolderTreeUri = treeUri
-            selectedFolderUris.clear()
-            selectedFolderUris.add(treeUri)
-            selectedInputsOrdered.remove(treeUri)
-            selectedInputsOrdered.add(treeUri)
-            statusTv.text =
-                "KittyPress status: Working folder selected: ${
-                    DocumentFile.fromTreeUri(this, treeUri)?.name ?: treeUri.lastPathSegment
-                }"
+            statusTv.text = "KittyPress status: Destination folder permission granted."
         }
 
     private val pickArchiveLauncher: ActivityResultLauncher<Array<String>> =
@@ -139,6 +164,10 @@ class MainActivity : AppCompatActivity() {
                 selectedArchiveUri = uri
                 val name = uriDisplayName(uri) ?: uri.lastPathSegment ?: "archive.kitty"
                 statusTv.text = "KittyPress status: Selected archive: $name"
+                if (destinationFolderTreeUri == null) {
+                    statusTv.text = "KittyPress status: Choose destination folder access"
+                    pickDestinationFolderLauncher.launch(null)
+                }
             } else {
                 statusTv.text = "KittyPress status: No archive selected."
             }
@@ -185,7 +214,7 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
 
         btnPickFiles.setOnClickListener { pickFilesLauncher.launch(arrayOf("*/*")) }
-        btnPickFolder.setOnClickListener { pickFolderLauncher.launch(null) }
+        btnPickFolder.setOnClickListener { pickInputFolderLauncher.launch(null) }
 
         btnCompress.setOnClickListener {
             if (isCompressing) {
@@ -211,8 +240,24 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             pendingArchiveToExtract = archive
-            statusTv.text = "KittyPress status: Choose folder for extraction"
-            pickFolderLauncher.launch(null)
+            val dest = destinationFolderTreeUri
+            statusTv.text = "KittyPress status: Choose destination folder for extraction"
+            if (dest == null) pickDestinationFolderLauncher.launch(null) else lifecycleScope.launch(Dispatchers.IO) {
+                pendingArchiveToExtract = null
+                try {
+                    runExtractToFolderInternal(archive, dest)
+                    withContext(Dispatchers.Main) {
+                        sessionResetUI()
+                        statusTv.text = "KittyPress status: Extracted to chosen folder."
+                    }
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Error extracting to picked folder", ex)
+                    withContext(Dispatchers.Main) {
+                        sessionResetUI()
+                        statusTv.text = "KittyPress status: Failed to extract: ${ex.message}"
+                    }
+                }
+            }
         }
     }
 
@@ -312,8 +357,20 @@ class MainActivity : AppCompatActivity() {
                 pendingArchiveToCopy = tmpArchive
                 pendingArchiveName = outName
                 withContext(Dispatchers.Main) {
-                    statusTv.text = "KittyPress status: Choose folder to save archive"
-                    pickFolderLauncher.launch(null)
+                    val dest = destinationFolderTreeUri
+                    if (dest == null) {
+                        statusTv.text = "KittyPress status: Choose destination folder to save archive"
+                        pickDestinationFolderLauncher.launch(null)
+                    } else {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val ok = copyFileToDocumentFolder(tmpArchive, dest, outName)
+                            if (tmpArchive.exists()) tmpArchive.delete()
+                            withContext(Dispatchers.Main) {
+                                sessionResetUI()
+                                statusTv.text = if (ok) "KittyPress status: Archive saved: $outName" else "KittyPress status: Failed to save archive."
+                            }
+                        }
+                    }
                 }
 
             } catch (ex: Exception) {
@@ -396,8 +453,20 @@ class MainActivity : AppCompatActivity() {
                 pendingArchiveToCopy = tmpArchive
                 pendingArchiveName = outName
                 withContext(Dispatchers.Main) {
-                    statusTv.text = "KittyPress status: Choose folder to save archive"
-                    pickFolderLauncher.launch(null)
+                    val dest = destinationFolderTreeUri
+                    if (dest == null) {
+                        statusTv.text = "KittyPress status: Choose destination folder to save archive"
+                        pickDestinationFolderLauncher.launch(null)
+                    } else {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val ok = copyFileToDocumentFolder(tmpArchive, dest, outName)
+                            if (tmpArchive.exists()) tmpArchive.delete()
+                            withContext(Dispatchers.Main) {
+                                sessionResetUI()
+                                statusTv.text = if (ok) "KittyPress status: Archive saved: $outName" else "KittyPress status: Failed to save archive."
+                            }
+                        }
+                    }
                 }
 
                 inputsRoot.deleteRecursively()
