@@ -113,8 +113,9 @@ void compressFile(const string &inputPath, const string &outputPath) {
     ZSTD_CStream* cs = ZSTD_createCStream();
     configureZstdWorkers(cs);
     ZSTD_initCStream(cs, 1);
+    (void)ZSTD_CCtx_setPledgedSrcSize(cs, origSize);
 
-    const size_t CHUNK = 64 * 1024;
+    const size_t CHUNK = 256 * 1024;
     vector<char> inBuf(CHUNK), outBuf(CHUNK);
 
     while (in.good()) {
@@ -170,6 +171,7 @@ void compressStreamToStream(istream &in, ostream &out, uint64_t origSize,
     ZSTD_CStream* cs = ZSTD_createCStream();
     configureZstdWorkers(cs);
     ZSTD_initCStream(cs, -3);
+    (void)ZSTD_CCtx_setPledgedSrcSize(cs, origSize);
 
     const size_t CHUNK = 256 * 1024;
     vector<char> inBuf(CHUNK), outBuf(CHUNK);

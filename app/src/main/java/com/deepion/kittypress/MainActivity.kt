@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
 
     @Volatile private var isCompressing = false
     @Volatile private var isExtracting = false
+    @Volatile private var pendingCompressionStart = false
 
     companion object {
         const val IntentFlagsForTree =
@@ -68,20 +69,16 @@ class MainActivity : AppCompatActivity() {
                 selectedFileUris.addAll(uris)
                 selectedInputsOrdered.removeAll { it in selectedFileUris }
                 selectedInputsOrdered.addAll(uris)
-                statusTv.text = "KittyPress status: Selected ${uris.size} file(s)"
-                if (destinationFolderTreeUri == null) {
-                    statusTv.text = "KittyPress status: Choose destination folder access"
-                    pickDestinationFolderLauncher.launch(null)
-                }
+                statusTv.text = "✅ Selected ${uris.size} file(s). Tap Compress when ready."
             } else {
-                statusTv.text = "KittyPress status: No files selected."
+                statusTv.text = "⚠️ No files selected."
             }
         }
 
     private val pickInputFolderLauncher: ActivityResultLauncher<Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { treeUri ->
             if (treeUri == null) {
-                statusTv.text = "KittyPress status: No folder picked."
+                statusTv.text = "⚠️ No folder picked."
                 return@registerForActivityResult
             }
             try {
@@ -94,20 +91,15 @@ class MainActivity : AppCompatActivity() {
             selectedInputsOrdered.remove(treeUri)
             selectedInputsOrdered.add(treeUri)
             statusTv.text =
-                "KittyPress status: Working folder selected: ${
+                "✅ Folder selected: ${
                     DocumentFile.fromTreeUri(this, treeUri)?.name ?: treeUri.lastPathSegment
-                }"
-
-            if (destinationFolderTreeUri == null) {
-                statusTv.text = "KittyPress status: Choose destination folder access"
-                pickDestinationFolderLauncher.launch(null)
-            }
+                }. Tap Compress when ready."
         }
 
     private val pickDestinationFolderLauncher: ActivityResultLauncher<Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { treeUri ->
             if (treeUri == null) {
-                statusTv.text = "KittyPress status: Destination folder not selected."
+                statusTv.text = "⚠️ Destination not selected."
                 return@registerForActivityResult
             }
             try {
@@ -127,8 +119,8 @@ class MainActivity : AppCompatActivity() {
 
                     withContext(Dispatchers.Main) {
                         sessionResetUI()
-                        statusTv.text = if (ok) "KittyPress status: Archive saved: $pendingName"
-                        else "KittyPress status: Failed to save archive."
+                        statusTv.text = if (ok) "✅ Archive saved: $pendingName"
+                        else "❌ Failed to save archive."
                     }
                 }
                 return@registerForActivityResult
@@ -142,20 +134,25 @@ class MainActivity : AppCompatActivity() {
                         runExtractToFolderInternal(pendingExtract, treeUri)
                         withContext(Dispatchers.Main) {
                             sessionResetUI()
-                            statusTv.text = "KittyPress status: Extracted to chosen folder."
+                            statusTv.text = "✅ Extraction complete. Files saved to destination."
                         }
                     } catch (ex: Exception) {
                         Log.e(TAG, "Error extracting to picked folder", ex)
                         withContext(Dispatchers.Main) {
                             sessionResetUI()
-                            statusTv.text = "KittyPress status: Failed to extract: ${ex.message}"
+                            statusTv.text = "❌ Extraction failed: ${ex.message}"
                         }
                     }
                 }
                 return@registerForActivityResult
             }
 
-            statusTv.text = "KittyPress status: Destination folder permission granted."
+            if (pendingCompressionStart) {
+                pendingCompressionStart = false
+                lifecycleScope.launch { compressAction() }
+            } else {
+                statusTv.text = "✅ Destination folder ready."
+            }
         }
 
     private val pickArchiveLauncher: ActivityResultLauncher<Array<String>> =
@@ -163,13 +160,9 @@ class MainActivity : AppCompatActivity() {
             if (uri != null) {
                 selectedArchiveUri = uri
                 val name = uriDisplayName(uri) ?: uri.lastPathSegment ?: "archive.kitty"
-                statusTv.text = "KittyPress status: Selected archive: $name"
-                if (destinationFolderTreeUri == null) {
-                    statusTv.text = "KittyPress status: Choose destination folder access"
-                    pickDestinationFolderLauncher.launch(null)
-                }
+                statusTv.text = "📦 Archive selected: $name. Tap Extract."
             } else {
-                statusTv.text = "KittyPress status: No archive selected."
+                statusTv.text = "⚠️ Select a KITTY archive first."
             }
         }
 
@@ -203,10 +196,11 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     progressBar.visibility = View.VISIBLE
                     tvProgressPct.visibility = View.VISIBLE
-                    progressBar.progress = nativePct.coerceIn(0, 100)
+                    val shownPct = if (isExtracting && nativePct >= 100) 99 else nativePct.coerceIn(0, 100)
+                    progressBar.progress = shownPct
                     tvProgressPct.text = when {
-                        isCompressing -> "Compressing: $nativePct%"
-                        isExtracting -> "Extracting: $nativePct%"
+                        isCompressing -> "Compressing: ${shownPct}%"
+                        isExtracting -> "Extracting: ${shownPct}%"
                         else -> "$nativePct%"
                     }
                 }
@@ -218,10 +212,10 @@ class MainActivity : AppCompatActivity() {
 
         btnCompress.setOnClickListener {
             if (isCompressing) {
-                statusTv.text = "KittyPress status: Already compressing..."
+                statusTv.text = "⏳ Compression already in progress..."
                 return@setOnClickListener
             }
-            statusTv.text = "KittyPress status: Preparing to compress..."
+            statusTv.text = "🚀 Preparing compression..."
             lifecycleScope.launch { compressAction() }
         }
 
@@ -232,29 +226,29 @@ class MainActivity : AppCompatActivity() {
         btnExtractSelected.setOnClickListener {
             val archive = selectedArchiveUri
             if (archive == null) {
-                statusTv.text = "KittyPress status: No archive selected."
+                statusTv.text = "⚠️ Select a KITTY archive first."
                 return@setOnClickListener
             }
             if (isExtracting) {
-                statusTv.text = "KittyPress status: Extraction already in progress..."
+                statusTv.text = "⏳ Extraction already in progress..."
                 return@setOnClickListener
             }
             pendingArchiveToExtract = archive
             val dest = destinationFolderTreeUri
-            statusTv.text = "KittyPress status: Choose destination folder for extraction"
+            statusTv.text = "📁 Choose destination folder for extraction"
             if (dest == null) pickDestinationFolderLauncher.launch(null) else lifecycleScope.launch(Dispatchers.IO) {
                 pendingArchiveToExtract = null
                 try {
                     runExtractToFolderInternal(archive, dest)
                     withContext(Dispatchers.Main) {
                         sessionResetUI()
-                        statusTv.text = "KittyPress status: Extracted to chosen folder."
+                        statusTv.text = "✅ Extraction complete. Files saved to destination."
                     }
                 } catch (ex: Exception) {
                     Log.e(TAG, "Error extracting to picked folder", ex)
                     withContext(Dispatchers.Main) {
                         sessionResetUI()
-                        statusTv.text = "KittyPress status: Failed to extract: ${ex.message}"
+                        statusTv.text = "❌ Extraction failed: ${ex.message}"
                     }
                 }
             }
@@ -275,7 +269,18 @@ class MainActivity : AppCompatActivity() {
                 if (selectedFolderUris.isEmpty() && selectedFileUris.isEmpty()) {
                     withContext(Dispatchers.Main) {
                         sessionResetUI()
-                        statusTv.text = "KittyPress status: No input selected."
+                        statusTv.text = "⚠️ Choose file(s) or folder(s) first."
+                    }
+                    isCompressing = false
+                    withContext(Dispatchers.Main) { btnCompress.isEnabled = true }
+                    return@withContext
+                }
+
+                if (destinationFolderTreeUri == null) {
+                    pendingCompressionStart = true
+                    withContext(Dispatchers.Main) {
+                        statusTv.text = "📁 Choose destination folder to save archive"
+                        pickDestinationFolderLauncher.launch(null)
                     }
                     isCompressing = false
                     withContext(Dispatchers.Main) { btnCompress.isEnabled = true }
@@ -284,12 +289,12 @@ class MainActivity : AppCompatActivity() {
 
                 if (detectSingleFileMode()) {
                     withContext(Dispatchers.Main) {
-                        statusTv.text = "KittyPress status: Compressing single file..."
+                        statusTv.text = "🗜️ Compressing single file..."
                     }
                     compressActionSingleFile()
                 } else {
                     withContext(Dispatchers.Main) {
-                        statusTv.text = "KittyPress status: Compressing multiple files..."
+                        statusTv.text = "🗜️ Compressing multiple files..."
                     }
                     compressActionMultiFile()
                 }
@@ -298,7 +303,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "compressAction", ex)
                 withContext(Dispatchers.Main) {
                     sessionResetUI()
-                    statusTv.text = "KittyPress status: Error: ${ex.message}"
+                    statusTv.text = "❌ Error: ${ex.message}"
                 }
             } finally {
                 isCompressing = false
@@ -322,7 +327,7 @@ class MainActivity : AppCompatActivity() {
                 tmpArchive.parentFile?.mkdirs()
 
                 withContext(Dispatchers.Main) {
-                    statusTv.text = "KittyPress status: Copying file to temp..."
+                    statusTv.text = "📥 Reading selected file..."
                 }
 
                 // Copy input URI to temp file
@@ -334,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                 } ?: throw IOException("Cannot open input URI")
 
                 withContext(Dispatchers.Main) {
-                    statusTv.text = "KittyPress status: Running native compression..."
+                    statusTv.text = "⚙️ Running compression engine..."
                 }
 
                 // Use the archive compression (handles single file too)
@@ -348,7 +353,7 @@ class MainActivity : AppCompatActivity() {
                 if (rc != 0) {
                     withContext(Dispatchers.Main) {
                         sessionResetUI()
-                        statusTv.text = "KittyPress status: Compression failed."
+                        statusTv.text = "❌ Compression failed."
                     }
                     tmpArchive.delete()
                     return@withContext
@@ -359,7 +364,7 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     val dest = destinationFolderTreeUri
                     if (dest == null) {
-                        statusTv.text = "KittyPress status: Choose destination folder to save archive"
+                        statusTv.text = "📁 Choose destination folder to save archive"
                         pickDestinationFolderLauncher.launch(null)
                     } else {
                         lifecycleScope.launch(Dispatchers.IO) {
@@ -367,7 +372,7 @@ class MainActivity : AppCompatActivity() {
                             if (tmpArchive.exists()) tmpArchive.delete()
                             withContext(Dispatchers.Main) {
                                 sessionResetUI()
-                                statusTv.text = if (ok) "KittyPress status: Archive saved: $outName" else "KittyPress status: Failed to save archive."
+                                statusTv.text = if (ok) "✅ Archive saved: $outName" else "❌ Failed to save archive."
                             }
                         }
                     }
@@ -377,7 +382,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "compressActionSingleFile", ex)
                 withContext(Dispatchers.Main) {
                     sessionResetUI()
-                    statusTv.text = "KittyPress status: Error: ${ex.message}"
+                    statusTv.text = "❌ Error: ${ex.message}"
                 }
             }
         }
@@ -432,7 +437,7 @@ class MainActivity : AppCompatActivity() {
                 tmpArchive.parentFile?.mkdirs()
 
                 withContext(Dispatchers.Main) {
-                    statusTv.text = "KittyPress status: Running native compression..."
+                    statusTv.text = "⚙️ Running compression engine..."
                 }
 
                 val rc = KittyPressNative.compressNative(
@@ -443,7 +448,7 @@ class MainActivity : AppCompatActivity() {
                 if (rc != 0) {
                     withContext(Dispatchers.Main) {
                         sessionResetUI()
-                        statusTv.text = "KittyPress status: Compression failed."
+                        statusTv.text = "❌ Compression failed."
                     }
                     tmpArchive.delete()
                     inputsRoot.deleteRecursively()
@@ -455,7 +460,7 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     val dest = destinationFolderTreeUri
                     if (dest == null) {
-                        statusTv.text = "KittyPress status: Choose destination folder to save archive"
+                        statusTv.text = "📁 Choose destination folder to save archive"
                         pickDestinationFolderLauncher.launch(null)
                     } else {
                         lifecycleScope.launch(Dispatchers.IO) {
@@ -463,7 +468,7 @@ class MainActivity : AppCompatActivity() {
                             if (tmpArchive.exists()) tmpArchive.delete()
                             withContext(Dispatchers.Main) {
                                 sessionResetUI()
-                                statusTv.text = if (ok) "KittyPress status: Archive saved: $outName" else "KittyPress status: Failed to save archive."
+                                statusTv.text = if (ok) "✅ Archive saved: $outName" else "❌ Failed to save archive."
                             }
                         }
                     }
@@ -475,7 +480,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "compressActionMultiFile", ex)
                 withContext(Dispatchers.Main) {
                     sessionResetUI()
-                    statusTv.text = "KittyPress status: Error: ${ex.message}"
+                    statusTv.text = "❌ Error: ${ex.message}"
                 }
             }
         }
@@ -486,7 +491,7 @@ class MainActivity : AppCompatActivity() {
         isExtracting = true
         try {
             withContext(Dispatchers.Main) {
-                statusTv.text = "KittyPress status: Running native decompress..."
+                statusTv.text = "⚙️ Decoding KITTY archive..."
             }
 
             val name = uriDisplayName(archiveUri) ?: "archive.kitty"
@@ -510,7 +515,7 @@ class MainActivity : AppCompatActivity() {
             outDir.mkdirs()
 
             withContext(Dispatchers.Main) {
-                statusTv.text = "KittyPress status: Extracting archive..."
+                statusTv.text = "📂 Extracting files..."
             }
 
             // Always use archive extraction (handles 1 or multiple files)
@@ -530,7 +535,17 @@ class MainActivity : AppCompatActivity() {
                 ?: destTree.createDirectory(baseFolderName)
                 ?: throw IOException("Cannot create output folder")
 
+            withContext(Dispatchers.Main) {
+                progressBar.isIndeterminate = true
+                tvProgressPct.text = "Finishing: moving files to destination..."
+                statusTv.text = "🚚 Finalizing files in destination folder..."
+            }
+
             copyDirIntoDocumentFolder(extractedRoot, destFolder)
+
+            withContext(Dispatchers.Main) {
+                progressBar.isIndeterminate = false
+            }
 
             tmpArchive.delete()
             outDir.deleteRecursively()
@@ -598,7 +613,7 @@ class MainActivity : AppCompatActivity() {
                 ?: throw IOException("Failed to create file")
 
             contentResolver.openOutputStream(created.uri)?.use { out ->
-                src.inputStream().use { it.copyTo(out) }
+                copyFileFast(src, out)
             }
             return
         }
@@ -615,7 +630,7 @@ class MainActivity : AppCompatActivity() {
                 ) ?: throw IOException("Failed to create file ${f.name}")
 
                 contentResolver.openOutputStream(file.uri)?.use { out ->
-                    f.inputStream().use { it.copyTo(out) }
+                    copyFileFast(f, out)
                 }
             }
         }
@@ -636,12 +651,23 @@ class MainActivity : AppCompatActivity() {
             val created = root.createFile("application/octet-stream", name) ?: return false
 
             contentResolver.openOutputStream(created.uri)?.use { out ->
-                src.inputStream().use { it.copyTo(out) }
+                copyFileFast(src, out)
             }
             true
         } catch (e: Exception) {
             Log.e(TAG, "copyFileToDocumentFolder", e)
             false
+        }
+    }
+
+    private fun copyFileFast(src: File, out: java.io.OutputStream) {
+        src.inputStream().buffered(512 * 1024).use { input ->
+            val buf = ByteArray(512 * 1024)
+            var read: Int
+            while (input.read(buf).also { read = it } >= 0) {
+                out.write(buf, 0, read)
+            }
+            out.flush()
         }
     }
 
@@ -673,7 +699,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sessionResetUI(preserveStatus: Boolean = true) {
-        val lastStatus = if (preserveStatus) statusTv.text else "KittyPress status: Ready"
+        val lastStatus = if (preserveStatus) statusTv.text else "✅ Ready"
 
         selectedFileUris.clear()
         selectedFolderUris.clear()
@@ -747,7 +773,7 @@ class MainActivity : AppCompatActivity() {
 
         // Optional: show status
         val modeStr = if (newMode == AppCompatDelegate.MODE_NIGHT_YES) "Dark" else "Light"
-        statusTv.text = "KittyPress status: Switched to $modeStr mode"
+        statusTv.text = "🎨 Switched to $modeStr mode"
     }
 
     private fun exitApp() {

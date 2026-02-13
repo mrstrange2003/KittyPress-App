@@ -9,7 +9,7 @@
         android:id="@+id/mainToolbar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="#11182C"
+        android:background="@color/toolbar_bg"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
         android:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
@@ -19,8 +19,8 @@
 
         <LinearLayout
             android:orientation="vertical"
-            android:padding="24dp"
-            android:paddingTop="36dp"
+            android:padding="20dp"
+            android:paddingTop="24dp"
             android:gravity="center_horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
@@ -31,42 +31,42 @@
                 android:text="🚀 Compression"
                 android:textSize="22sp"
                 android:textStyle="bold"
-                android:textColor="#EAF3FF"
+                android:textColor="@color/text_primary"
                 android:gravity="center"
-                android:paddingBottom="16dp" />
+                android:paddingBottom="14dp" />
 
             <Button
                 android:id="@+id/btn_pick_files"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/kitty_button"
-                android:text="Choose Files To Compress"
-                android:textSize="17sp"
+                android:text="Select Files"
+                android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#0D1430"
-                android:layout_marginBottom="12dp" />
+                android:textColor="@color/button_text"
+                android:layout_marginBottom="10dp" />
 
             <Button
                 android:id="@+id/btn_pick_folder"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/kitty_button"
-                android:text="Choose Folders To Compress"
-                android:textSize="17sp"
+                android:text="Select Folder"
+                android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#0D1430"
-                android:layout_marginBottom="12dp" />
+                android:textColor="@color/button_text"
+                android:layout_marginBottom="10dp" />
 
             <Button
                 android:id="@+id/btn_compress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/kitty_button"
-                android:text="Compress Files/Folders"
+                android:text="Compress"
                 android:textSize="17sp"
                 android:textStyle="bold"
-                android:textColor="#0D1430"
-                android:layout_marginBottom="32dp" />
+                android:textColor="@color/button_text"
+                android:layout_marginBottom="28dp" />
 
             <TextView
                 android:layout_width="match_parent"
@@ -74,41 +74,41 @@
                 android:text="📦 Extraction"
                 android:textSize="22sp"
                 android:textStyle="bold"
-                android:textColor="#EAF3FF"
+                android:textColor="@color/text_primary"
                 android:gravity="center"
-                android:paddingBottom="16dp" />
+                android:paddingBottom="14dp" />
 
             <Button
                 android:id="@+id/btn_pick_archive"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/kitty_button"
-                android:text="Choose KITTY File"
-                android:textSize="17sp"
+                android:text="Select KITTY File"
+                android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#0D1430"
-                android:layout_marginBottom="12dp" />
+                android:textColor="@color/button_text"
+                android:layout_marginBottom="10dp" />
 
             <Button
                 android:id="@+id/btn_extract_selected"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/kitty_button"
-                android:text="Extract Selected File"
+                android:text="Extract"
                 android:textSize="17sp"
                 android:textStyle="bold"
-                android:textColor="#0D1430"
-                android:layout_marginBottom="24dp" />
+                android:textColor="@color/button_text"
+                android:layout_marginBottom="20dp" />
 
             <TextView
                 android:id="@+id/tv_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="KittyPress status: Ready"
-                android:textColor="#CEDBFF"
-                android:textSize="16sp"
+                android:text="✅ Ready"
+                android:textColor="@color/text_secondary"
+                android:textSize="15sp"
                 android:gravity="center"
-                android:paddingTop="16dp"
+                android:paddingTop="10dp"
                 android:paddingBottom="8dp" />
 
             <ProgressBar
@@ -127,11 +127,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text=""
-                android:textColor="#BFD2FF"
+                android:textColor="@color/text_secondary"
                 android:textSize="14sp"
                 android:gravity="center"
                 android:visibility="gone"
-                android:paddingBottom="40dp" />
+                android:paddingBottom="30dp" />
 
         </LinearLayout>
     </ScrollView>
