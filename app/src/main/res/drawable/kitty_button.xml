@@ -1,18 +1,22 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-
     <item android:state_pressed="true">
         <shape>
-            <solid android:color="#FFC107"/>
-            <corners android:radius="14dp"/>
+            <gradient
+                android:angle="270"
+                android:startColor="@color/button_pressed_start"
+                android:endColor="@color/button_pressed_end" />
+            <corners android:radius="16dp"/>
         </shape>
     </item>
 
     <item>
         <shape>
-            <solid android:color="#FFE082"/>
-            <corners android:radius="14dp"/>
-            <padding android:left="12dp" android:right="12dp" android:top="8dp" android:bottom="8dp"/>
+            <gradient
+                android:angle="270"
+                android:startColor="@color/button_start"
+                android:endColor="@color/button_end" />
+            <corners android:radius="16dp"/>
+            <padding android:left="14dp" android:right="14dp" android:top="10dp" android:bottom="10dp"/>
         </shape>
     </item>
-
 </selector>
