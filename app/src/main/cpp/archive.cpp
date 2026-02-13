@@ -9,9 +9,12 @@
 #include <vector>
 #include <cstdint>
 #include <algorithm>
+#include <future>
+#include <thread>
+#include <atomic>
 
 using namespace std;
-namespace fs = std::__fs::filesystem;
+namespace fs = std::filesystem;
 
 static void gatherFiles(const fs::path& base, const fs::path& p,
                         vector<ArchiveInput>& list) {
@@ -284,39 +287,45 @@ std::string extractArchive(const std::string& archivePath, const std::string& ou
     fs::path rootOut = fs::path(outputFolder) / finalRootName;
     fs::create_directories(rootOut);
 
-    // Second pass: extract every entry under rootOut preserving relative path.
+    // Prepare output paths first (single-threaded directory creation).
+    std::vector<std::string> outPaths(entries.size());
     for (size_t i = 0; i < entries.size(); ++i) {
         auto &e = entries[i];
-
         fs::path relp(e.rel);
         fs::path outPath = rootOut / relp;
-
-        // if entry has stored ext, replace extension
-        if (!e.ext.empty()) {
-            outPath.replace_extension("." + e.ext);
-        }
-
+        if (!e.ext.empty()) outPath.replace_extension("." + e.ext);
         fs::create_directories(outPath.parent_path());
-
-        // seek to this entry's KP05 payload
-        in.seekg((std::streamoff)e.payloadOffset, std::ios::beg);
-        if (!in.good()) {
-            in.close();
-            throw std::runtime_error("Failed to seek to payload");
-        }
-
-        // decompress directly from archive stream
-        decompressFromStream(in, e.dataSize, outPath.string());
-
-        // progress batching: roughly 1MB chunks
-        progressBatch += e.dataSize;
-        if (progressBatch >= PROGRESS_BATCH || i == entries.size() - 1) {
-            if (progressBatch > 0) {
-                native_progress_add_processed(progressBatch);
-                progressBatch = 0;
-            }
-        }
+        outPaths[i] = outPath.string();
     }
+
+    // Multi-thread extraction by entry (safe: each task uses its own ifstream).
+    const unsigned hw = std::thread::hardware_concurrency();
+    const unsigned workers = std::max(1u, std::min(4u, hw == 0 ? 2u : hw));
+    std::atomic<size_t> nextIndex{0};
+
+    std::vector<std::future<void>> tasks;
+    tasks.reserve(workers);
+
+    for (unsigned w = 0; w < workers; ++w) {
+        tasks.push_back(std::async(std::launch::async, [&, w]() {
+            while (true) {
+                size_t i = nextIndex.fetch_add(1);
+                if (i >= entries.size()) break;
+
+                const auto &e = entries[i];
+                std::ifstream localIn(archivePath, std::ios::binary);
+                if (!localIn) throw std::runtime_error("Cannot open archive worker stream");
+
+                localIn.seekg((std::streamoff)e.payloadOffset, std::ios::beg);
+                if (!localIn.good()) throw std::runtime_error("Failed to seek to payload");
+
+                decompressFromStream(localIn, e.dataSize, outPaths[i]);
+                native_progress_add_processed(e.dataSize);
+            }
+        }));
+    }
+
+    for (auto &t : tasks) t.get();
 
     in.close();
     return finalRootName; // return root folder name

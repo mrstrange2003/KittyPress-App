@@ -13,13 +13,25 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cstring>
+#include <thread>
 
 using namespace std;
-namespace fs = std::__fs::filesystem;
+namespace fs = std::filesystem;
 
 enum KPCodec : uint8_t {
     KP_CODEC_ZSTD = 1
 };
+
+static void configureZstdWorkers(ZSTD_CStream* cs) {
+    unsigned hw = std::thread::hardware_concurrency();
+    if (hw <= 1) return;
+
+    unsigned workers = std::min(2u, hw - 1);
+    size_t setWorkers = ZSTD_CCtx_setParameter(cs, ZSTD_c_nbWorkers, (int)workers);
+    if (ZSTD_isError(setWorkers)) return; // not supported on this build, continue safely
+
+    (void)ZSTD_CCtx_setParameter(cs, ZSTD_c_jobSize, 1 << 20);
+}
 
 static string makeFinalOutputPath(const string &baseOut, const string &storedExt) {
     fs::path p(baseOut);
@@ -99,6 +111,7 @@ void compressFile(const string &inputPath, const string &outputPath) {
     streampos compStart = out.tellp();
 
     ZSTD_CStream* cs = ZSTD_createCStream();
+    configureZstdWorkers(cs);
     ZSTD_initCStream(cs, 1);
 
     const size_t CHUNK = 64 * 1024;
@@ -155,6 +168,7 @@ void compressStreamToStream(istream &in, ostream &out, uint64_t origSize,
     streampos compStart = out.tellp();
 
     ZSTD_CStream* cs = ZSTD_createCStream();
+    configureZstdWorkers(cs);
     ZSTD_initCStream(cs, -3);
 
     const size_t CHUNK = 256 * 1024;
@@ -259,13 +273,6 @@ void decompressFromStream(istream &in, uint64_t dataSize, const string &outputPa
         throw runtime_error("Invalid compressed size: " + std::to_string(compSize));
     }
 
-    vector<char> compBuf(compSize);
-    in.read(compBuf.data(), compSize);
-
-    if (in.gcount() != (streamsize)compSize) {
-        throw runtime_error("Failed to read compressed data");
-    }
-
     ofstream out(makeFinalOutputPath(outputPath, ext), ios::binary);
     if (!out) throw runtime_error("Cannot open output");
 
@@ -273,13 +280,30 @@ void decompressFromStream(istream &in, uint64_t dataSize, const string &outputPa
     ZSTD_initDStream(ds);
 
     const size_t CHUNK = 256 * 1024;
+    vector<char> inBuf(CHUNK);
     vector<char> outBuf(CHUNK);
 
-    ZSTD_inBuffer zin{ compBuf.data(), compBuf.size(), 0 };
-    while (zin.pos < zin.size) {
-        ZSTD_outBuffer zout{ outBuf.data(), outBuf.size(), 0 };
-        ZSTD_decompressStream(ds, &zout, &zin);
-        out.write(outBuf.data(), zout.pos);
+    uint64_t remaining = compSize;
+    while (remaining > 0) {
+        const size_t toRead = (size_t)std::min<uint64_t>(remaining, (uint64_t)inBuf.size());
+        in.read(inBuf.data(), (streamsize)toRead);
+        const size_t got = (size_t)in.gcount();
+        if (got == 0) {
+            ZSTD_freeDStream(ds);
+            throw runtime_error("Failed to read compressed data");
+        }
+        remaining -= got;
+
+        ZSTD_inBuffer zin{ inBuf.data(), got, 0 };
+        while (zin.pos < zin.size) {
+            ZSTD_outBuffer zout{ outBuf.data(), outBuf.size(), 0 };
+            size_t ret = ZSTD_decompressStream(ds, &zout, &zin);
+            if (ZSTD_isError(ret)) {
+                ZSTD_freeDStream(ds);
+                throw runtime_error("ZSTD decompress error");
+            }
+            if (zout.pos) out.write(outBuf.data(), zout.pos);
+        }
     }
 
     ZSTD_freeDStream(ds);
